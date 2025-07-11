@@ -1,8 +1,8 @@
-module e_commerce
+module e_commerce // Proje modülünün adı, import path olarak kullanılır
 
-go 1.24.5
+go 1.24.5 //Güncel sürüm
 
-require (
+require ( // Bu projede kullanılan harici paketleri listeler
 	github.com/bytedance/sonic v1.11.6 // indirect
 	github.com/bytedance/sonic/loader v0.1.1 // indirect
 	github.com/cloudwego/base64x v0.1.4 // indirect
