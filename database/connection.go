@@ -1,7 +1,7 @@
 package database// Database paketi: Veritabanı bağlantı işlemlerini içerir
 
 import (
-    "ecommerce/models" // Veritabanı modellerini içe aktar (örneğin: User)
+    "go_ecommerce/models" // Veritabanı modellerini içe aktar (örneğin: User)
     "gorm.io/driver/sqlite" // SQLite sürücüsü (veritabanı motoru)
     "gorm.io/gorm" // GORM ORM kütüphanesi
     "log" // Hataları yazdırmak için kullanılır

@@ -1,6 +1,6 @@
 package models // Models paketi: Veritabanı modellerinin yer aldığı katman
 
-import "gorm.io/gorm" z// GORM kütüphanesinin temel özelliklerini içe aktarır
+import "gorm.io/gorm" // GORM kütüphanesinin temel özelliklerini içe aktarır
 
 
 // User yapısı: "users" tablosunu temsil eder

@@ -4,8 +4,8 @@ package main
 
 //Import statement
 import (
-    "e_commerce/router"
-    "e_commerce/database"
+    "go_ecommerce/router"
+    "go_ecommerce/database"
 )
 
 //Kod bloğu
