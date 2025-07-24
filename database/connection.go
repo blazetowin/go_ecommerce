@@ -1,27 +1,30 @@
-package database// Database paketi: Veritabanı bağlantı işlemlerini içerir
+package database
 
 import (
-    "go_ecommerce/models" // Veritabanı modellerini içe aktar (örneğin: User)
-    "gorm.io/driver/sqlite" // SQLite sürücüsü (veritabanı motoru)
-    "gorm.io/gorm" // GORM ORM kütüphanesi
-    "log" // Hataları yazdırmak için kullanılır
+	"fmt"
+	"log"
+
+	"gorm.io/driver/sqlite"
+	"gorm.io/gorm"
+
+	"go_ecommerce/internal/models"
 )
 
-var DB *gorm.DB // DB: Global olarak erişilebilecek veritabanı bağlantı nesnesi
+var DB *gorm.DB
 
-func Connect() { // Connect fonksiyonu: Veritabanına bağlanır ve gerekli tabloları oluşturur
+func Connect() {
+	var err error
 
-	// GORM ile SQLite veritabanına bağlan (dosya olarak çalışır)
-    db, err := gorm.Open(sqlite.Open("ecommerce.db"), &gorm.Config{})
-    if err != nil {
-        log.Fatal("Veritabanina bağlanilamadi: ", err)
-		 // Bağlantı başarısızsa uygulamayı durdur
-    }
+	DB, err = gorm.Open(sqlite.Open("ecommerce.db"), &gorm.Config{})
+	if err != nil {
+		log.Fatal("❌ Veritabanı bağlantısı kurulamadı:", err)
+	}
 
-	// Veritabanı şemasıyla model eşleştirmesi yapılır
-    // Eğer "users" tablosu yoksa otomatik olarak oluşturulur
-    db.AutoMigrate(&models.User{})
+	fmt.Println("✅ Veritabanı bağlantısı başarılı")
 
-	// Bağlantı başarılıysa global DB değişkenine atılır
-    DB = db
+	// Otomatik tablo oluştur
+	err = DB.AutoMigrate(&models.Product{})
+	if err != nil {
+		log.Fatal("❌ Tablo migrate edilemedi:", err)
+	}
 }
