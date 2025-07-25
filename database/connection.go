@@ -1,9 +1,7 @@
 package database
 
-import (
-	"fmt"
+import(
 	"log"
-
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 
@@ -14,17 +12,21 @@ var DB *gorm.DB
 
 func Connect() {
 	var err error
-
 	DB, err = gorm.Open(sqlite.Open("ecommerce.db"), &gorm.Config{})
 	if err != nil {
-		log.Fatal("❌ Veritabanı bağlantısı kurulamadı:", err)
+		log.Fatal("Veritabanina bağlanilamadi: ", err)
 	}
 
-	fmt.Println("✅ Veritabanı bağlantısı başarılı")
+	// GORM ile tabloları oluştur
+	DB.AutoMigrate(&models.Product{})
 
-	// Otomatik tablo oluştur
-	err = DB.AutoMigrate(&models.Product{})
-	if err != nil {
-		log.Fatal("❌ Tablo migrate edilemedi:", err)
+	// 📦 Varsayılan ürünleri yükle
+	var count int64
+	DB.Model(&models.Product{}).Count(&count)
+	if count == 0 {
+		DB.Create(&models.Product{
+			Name:  "iPhone 14",
+			Stock: 5,
+		})
 	}
 }

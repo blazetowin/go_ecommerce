@@ -7,6 +7,8 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"strings"
+	"go_ecommerce/internal/repositories"
 )
 
 type ChatService struct {
@@ -70,4 +72,15 @@ func (cs *ChatService) AskQuestion(prompt string) (string, error) {
 	}
 
 	return data.Candidates[0].Content.Parts[0].Text, nil
+}
+func GetDynamicAnswer(userInput string)(string,bool){
+	//Bu cümlede ürün adı geçiyor mu kontrol ediyor
+	if strings.Contains(strings.ToLower(userInput), "iphone 14") && strings.Contains(userInput, "stok") {
+		adet := repositories.GetStockByProductName("iPhone 14")
+		if adet > 0 {
+			return "Evet, stokta " + fmt.Sprintf("%d", adet) + " adet iPhone 14 var.", true
+		}
+		return "Maalesef şu anda iPhone 14 stokta yok.", true
+	}
+	return "", false
 }
