@@ -5,3 +5,10 @@ CREATE TABLE IF NOT EXISTS products (
 );
 
 INSERT INTO products (name, stock) VALUES ('iPhone 14', 5);
+
+CREATE TABLE IF NOT EXISTS orders (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  product_name TEXT NOT NULL,
+  quantity INTEGER NOT NULL,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);

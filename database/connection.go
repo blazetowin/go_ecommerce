@@ -18,14 +18,17 @@ func Connect() {
 	}
 
 	// GORM ile tabloları oluştur
-	DB.AutoMigrate(&models.Product{})
+	DB.AutoMigrate(&models.Product{},&models.Order{})
 
 	// 📦 Varsayılan ürünleri yükle
 	var count int64
 	DB.Model(&models.Product{}).Count(&count)
 	if count == 0 {
 		DB.Create(&models.Product{
-			Name:  "iPhone 14",
+			Name: "iPhone 14",
+			Description: "Apple'ın son modeli",
+			Price: 39999.99,
+			InStock:true,
 			Stock: 5,
 		})
 	}

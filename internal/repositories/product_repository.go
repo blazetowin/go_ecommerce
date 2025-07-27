@@ -35,3 +35,15 @@ func GetStockByProductName(name string) int {
 	}
 	return product.Stock
 }
+
+func UpdateStock(name string, newStock int) error {
+	var product models.Product
+	err := database.DB.Where("name LIKE ?", name).First(&product).Error
+	if err != nil {
+		return err
+	}
+
+	product.Stock = newStock
+	return database.DB.Save(&product).Error
+}
+

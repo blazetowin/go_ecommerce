@@ -35,18 +35,24 @@ func (h *ChatHandler) HandleChat(w http.ResponseWriter, r *http.Request) {
 
 	userInput := req.Prompt
 
-	// ✨ Önce veritabanına bakarak cevabı üret
-	dynamicAnswer, matched := services.GetDynamicAnswer(userInput)
-	if matched {
+	// 🛒 1. Sipariş isteği kontrolü
+	if purchaseAnswer, matched := h.ChatService.CheckIfPurchaseIntent(userInput); matched {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(ChatResponse{Answer: purchaseAnswer})
+		return
+	}
+
+	// 📦 2. Stok kontrolü
+	if dynamicAnswer, matched := services.GetDynamicAnswer(userInput); matched {
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(ChatResponse{Answer: dynamicAnswer})
 		return
 	}
 
-	// 🧠 Eğer eşleşme yoksa Gemini'den cevap al
+	// 🤖 3. AI yanıtı (Gemini)
 	answer, err := h.ChatService.AskQuestion(userInput)
 	if err != nil {
-		fmt.Println("❌ OpenAI ile konuşma hatası:", err)
+		fmt.Println("❌ Gemini API hatası:", err)
 		http.Error(w, "Gemini yanıtı alınamadı", http.StatusInternalServerError)
 		return
 	}

@@ -6,20 +6,24 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"os"
 	"strings"
 	"go_ecommerce/internal/repositories"
 )
 
 type ChatService struct {
+	orderRepo *repositories.OrderRepository
 	APIKey string
 }
 
-func NewChatService() *ChatService {
+
+func NewChatService(orderRepo *repositories.OrderRepository, apiKey string) *ChatService {
 	return &ChatService{
-		APIKey: os.Getenv("GEMINI_API_KEY"),
+		orderRepo: orderRepo,
+		APIKey:    apiKey, // ✔️ Artık parametre olarak geldiği için tanımlı
 	}
 }
+
+
 
 func (cs *ChatService) AskQuestion(prompt string) (string, error) {
 	url := "https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key="+ cs.APIKey
@@ -73,6 +77,7 @@ func (cs *ChatService) AskQuestion(prompt string) (string, error) {
 
 	return data.Candidates[0].Content.Parts[0].Text, nil
 }
+
 func GetDynamicAnswer(userInput string)(string,bool){
 	//Bu cümlede ürün adı geçiyor mu kontrol ediyor
 	if strings.Contains(strings.ToLower(userInput), "iphone 14") && strings.Contains(userInput, "stok") {
@@ -84,3 +89,25 @@ func GetDynamicAnswer(userInput string)(string,bool){
 	}
 	return "", false
 }
+
+var orderRepo = repositories.NewOrderRepository()
+
+func (s *ChatService) CheckIfPurchaseIntent(userInput string) (string, bool) {
+	if strings.Contains(strings.ToLower(userInput), "satın almak istiyorum") && strings.Contains(userInput, "iphone 14") {
+		currentStock := repositories.GetStockByProductName("iPhone 14")
+		if currentStock <= 0 {
+			return "Üzgünüz, şu anda iPhone 14 stokta yok.", true
+		}
+
+		err := s.orderRepo.CreateOrder("iPhone 14", 1)
+		if err != nil {
+			return "Sipariş oluşturulurken bir hata oluştu.", true
+		}
+
+		repositories.UpdateStock("iPhone 14", currentStock-1)
+
+		return "Siparişiniz başarıyla oluşturuldu! 📦", true
+	}
+	return "", false
+}
+
