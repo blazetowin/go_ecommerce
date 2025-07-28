@@ -28,7 +28,7 @@ func main() {
 	// 💬 Chat
 	orderRepo :=repositories.NewOrderRepository()
 	apiKey := os.Getenv("GEMINI_API_KEY")
-	chatService := services.NewChatService(orderRepo,apiKey)
+	chatService := services.NewChatService(orderRepo,productRepo,apiKey)
 	chatHandler := handlers.NewChatHandler(chatService)
 
 	// 🧾 Siparişler
@@ -43,7 +43,7 @@ func main() {
 	// 🚚 Ürün işlemleri
 	mux.HandleFunc("/api/products", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodGet {
-			productHandler.GetAllProducts(w, r)
+			productHandler.GetProducts(w, r)
 		} else if r.Method == http.MethodPost {
 			productHandler.CreateProduct(w, r)
 		} else {

@@ -43,7 +43,7 @@ func (h *ChatHandler) HandleChat(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// 📦 2. Stok kontrolü
-	if dynamicAnswer, matched := services.GetDynamicAnswer(userInput); matched {
+	if dynamicAnswer, matched := h.ChatService.GetDynamicAnswer(userInput); matched {
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(ChatResponse{Answer: dynamicAnswer})
 		return

@@ -23,16 +23,18 @@ func (s *ProductService) GetAllProducts() ([]models.Product, error) {
 
 // Yeni ürün oluştur
 func (s *ProductService) CreateProduct(product *models.Product) error {
-	// Basit bir validasyon örneği:
-	if product.Name == "" || product.Price <= 0 {
-		return &InvalidProductError{}
-	}
+	product.InStock = product.Stock > 0
 	return s.Repo.Create(product)
 }
+
 
 // Hatalı ürünler için özel hata tipi
 type InvalidProductError struct{}
 
 func (e *InvalidProductError) Error() string {
 	return "Ürün adı ve fiyatı geçerli olmalıdır"
+}
+
+func (s *ProductService) GetFiltered(name string, minPrice, maxPrice, minStock, maxStock int) ([]models.Product, error) {
+	return s.Repo.FindFilteredProducts(name, minPrice, maxPrice, minStock, maxStock)
 }
