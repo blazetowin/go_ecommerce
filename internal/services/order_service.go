@@ -18,3 +18,7 @@ func NewOrderService() *OrderService {
 func (s *OrderService) GetAllOrders() ([]models.Order, error) {
 	return s.repo.GetAllOrders()
 }
+func (s *OrderService) GetOrderHistory() ([]models.Order, error) {
+	return s.repo.GetAllOrders()
+}
+

@@ -2,6 +2,7 @@ package repositories
 
 import (
 	"fmt"
+	"strings"
 	"go_ecommerce/database"
 	"go_ecommerce/internal/models"
 	"gorm.io/gorm"
@@ -13,7 +14,7 @@ type OrderRepository struct {
 
 func NewOrderRepository() *OrderRepository {
 	return &OrderRepository{
-		db: database.DB, // 🔗 db bağlantısını içeri alıyoruz
+		db: database.DB,
 	}
 }
 
@@ -23,12 +24,10 @@ func (r *OrderRepository) CreateOrder(productName string, quantity int) error {
 		return err
 	}
 
-	// ❗ Yeterli stok yoksa hata dön
 	if product.Stock < quantity {
 		return fmt.Errorf("Stok yetersiz")
 	}
 
-	// ✅ Siparişi oluştur
 	order := models.Order{
 		ProductName: productName,
 		Quantity:    quantity,
@@ -38,7 +37,6 @@ func (r *OrderRepository) CreateOrder(productName string, quantity int) error {
 		return err
 	}
 
-	// 🔻 Stoğu azalt
 	product.Stock -= quantity
 	if err := r.db.Save(&product).Error; err != nil {
 		return err
@@ -49,6 +47,27 @@ func (r *OrderRepository) CreateOrder(productName string, quantity int) error {
 
 func (r *OrderRepository) GetAllOrders() ([]models.Order, error) {
 	var orders []models.Order
-	result := r.db.Find(&orders)
-	return orders, result.Error
+	err := r.db.Order("created_at desc").Find(&orders).Error
+	return orders, err
+}
+
+func (r *OrderRepository) GetLastNOrders(n int) ([]models.Order, error) {
+	var orders []models.Order
+	err := r.db.Order("created_at desc").Limit(n).Find(&orders).Error
+	if err != nil {
+		return nil, err
+	}
+	return orders, nil
+}
+
+func (r *OrderRepository) GetLastNOrdersByProduct(product string, n int) ([]models.Order, error) {
+	var orders []models.Order
+	err := r.db.Where("LOWER(product_name) LIKE ?", "%"+strings.ToLower(product)+"%").
+		Order("created_at desc").
+		Limit(n).
+		Find(&orders).Error
+	if err != nil {
+		return nil, err
+	}
+	return orders, nil
 }

@@ -27,3 +27,14 @@ func (h *OrderHandler) GetOrders(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(orders)
 }
+
+func (h *OrderHandler) GetOrderHistory(w http.ResponseWriter, r *http.Request) {
+	orders, err := h.OrderService.GetOrderHistory()
+	if err != nil {
+		http.Error(w, "Sipariş geçmişi alınamadı", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(orders)
+}
