@@ -61,11 +61,22 @@ func (h *ProductHandler) CreateProduct(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := h.ProductService.CreateProduct(&product); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+	createdProduct, err := h.ProductService.UpsertProduct(&product)
+	if err != nil {
+		http.Error(w, "Ürün kaydedilemedi: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
 
-	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(product)
+	json.NewEncoder(w).Encode(createdProduct)
 }
+// 🆔 GET /api/products/{id} → ID ile ürün getir
+func (h *ProductHandler) DeleteProduct(w http.ResponseWriter, r *http.Request, id uint) {
+	err := h.ProductService.DeleteProductByID(id)
+	if err != nil {
+		http.Error(w, "Ürün silinemedi: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+	w.WriteHeader(http.StatusOK)
+	w.Write([]byte("Ürün başarıyla silindi"))
+}
+

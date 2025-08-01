@@ -91,3 +91,19 @@ func (r *ProductRepository) FindFilteredProducts(name string, minPrice, maxPrice
 	}
 	return products, nil
 }
+func (r *ProductRepository) DeleteByID(id uint) error {
+	return r.db.Delete(&models.Product{}, id).Error
+}
+
+func (r *ProductRepository) GetByName(name string) (*models.Product, error) {
+	var product models.Product
+	result := r.db.Where("name = ?", name).First(&product)
+	if result.Error != nil {
+		return nil, result.Error
+	}
+	return &product, nil
+}
+
+func (r *ProductRepository) Update(product *models.Product) error {
+	return r.db.Save(product).Error
+}

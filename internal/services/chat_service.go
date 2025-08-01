@@ -25,6 +25,7 @@ func NewChatService(orderRepo *repositories.OrderRepository, productRepo *reposi
 	}
 }
 
+// Gemini API'ye prompt gönder
 func (cs *ChatService) AskQuestion(prompt string) (string, error) {
 	url := "https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=" + cs.APIKey
 
@@ -33,9 +34,7 @@ func (cs *ChatService) AskQuestion(prompt string) (string, error) {
 			{
 				"role": "user",
 				"parts": []map[string]string{
-					{
-						"text": prompt,
-					},
+					{"text": prompt},
 				},
 			},
 		},
@@ -78,32 +77,67 @@ func (cs *ChatService) AskQuestion(prompt string) (string, error) {
 	return data.Candidates[0].Content.Parts[0].Text, nil
 }
 
-func (cs *ChatService) GetDynamicAnswer(userInput string) (string, bool) {
-	if strings.Contains(strings.ToLower(userInput), "iphone 14") && strings.Contains(userInput, "stok") {
-		adet := cs.productRepo.GetStockByProductName("iPhone 14")
-		if adet > 0 {
-			return fmt.Sprintf("Evet, stokta %d adet iPhone 14 var.", adet), true
-		}
-		return "Maalesef şu anda iPhone 14 stokta yok.", true
+// Kullanıcının satın alma niyetini kontrol et
+func (cs *ChatService) CheckIfPurchaseIntent(userInput string) (string, bool) {
+	products, err := cs.productRepo.GetAll()
+	if err != nil {
+		return "Ürün bilgilerine ulaşılamıyor.", true
 	}
+
+	lowerInput := strings.ToLower(userInput)
+
+	// Satın alma niyetini yansıtan kalıplar
+	purchaseKeywords := []string{
+		"satın almak istiyorum",
+		"satın al",
+		"almak istiyorum",
+		"sipariş ver",
+		"siparişi ver",
+		"sipariş etmek istiyorum",
+		"satın alma",
+	}
+
+	for _, p := range products {
+		if strings.Contains(lowerInput, strings.ToLower(p.Name)) {
+			for _, keyword := range purchaseKeywords {
+				if strings.Contains(lowerInput, keyword) {
+					if p.Stock <= 0 {
+						return fmt.Sprintf("Üzgünüz, şu anda %s stokta yok.", p.Name), true
+					}
+
+					if err := cs.orderRepo.CreateOrder(p.Name, 1); err != nil {
+						return "Sipariş oluşturulurken bir hata oluştu.", true
+					}
+
+					if err := cs.productRepo.UpdateStockByName(p.Name, p.Stock-1); err != nil {
+						return "Stok güncellenemedi, siparişiniz alınamadı.", true
+					}
+
+					return fmt.Sprintf("Siparişiniz başarıyla oluşturuldu! (%s)", p.Name), true
+				}
+			}
+		}
+	}
+
 	return "", false
 }
 
-func (cs *ChatService) CheckIfPurchaseIntent(userInput string) (string, bool) {
-	if strings.Contains(strings.ToLower(userInput), "satın almak istiyorum") && strings.Contains(userInput, "iphone 14") {
-		currentStock := cs.productRepo.GetStockByProductName("iPhone 14")
-		if currentStock <= 0 {
-			return "Üzgünüz, şu anda iPhone 14 stokta yok.", true
-		}
 
-		err := cs.orderRepo.CreateOrder("iPhone 14", 1)
-		if err != nil {
-			return "Sipariş oluşturulurken bir hata oluştu.", true
-		}
-
-		_ = cs.productRepo.UpdateStockByName("iPhone 14", currentStock-1)
-
-		return "Siparişiniz başarıyla oluşturuldu! 📦", true
+// Dinamik stok sorgusu
+func (cs *ChatService) GetDynamicAnswer(prompt string) (string, bool) {
+	products, err := cs.productRepo.GetAll()
+	if err != nil {
+		return "Ürün bilgilerine ulaşılamadı.", true
 	}
+
+	for _, product := range products {
+		if strings.Contains(strings.ToLower(prompt), strings.ToLower(product.Name)) {
+			if product.Stock > 0 {
+				return fmt.Sprintf("Evet, stokta %d adet %s var.", product.Stock, product.Name), true
+			}
+			return fmt.Sprintf("Üzgünüz, şu anda %s stokta yok.", product.Name), true
+		}
+	}
+
 	return "", false
 }

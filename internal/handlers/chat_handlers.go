@@ -2,7 +2,6 @@ package handlers
 
 import (
 	"encoding/json"
-	"fmt"
 	"net/http"
 
 	"go_ecommerce/internal/services"
@@ -28,35 +27,32 @@ type ChatResponse struct {
 
 func (h *ChatHandler) HandleChat(w http.ResponseWriter, r *http.Request) {
 	var req ChatRequest
+
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "Geçersiz veri", http.StatusBadRequest)
+		http.Error(w, "Geçersiz istek", http.StatusBadRequest)
 		return
 	}
 
 	userInput := req.Prompt
 
-	// 🛒 1. Sipariş isteği kontrolü
-	if purchaseAnswer, matched := h.ChatService.CheckIfPurchaseIntent(userInput); matched {
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(ChatResponse{Answer: purchaseAnswer})
+	// 🛒 Önce satın alma niyeti kontrol edilir
+	if purchaseResponse, matched := h.ChatService.CheckIfPurchaseIntent(userInput); matched {
+		json.NewEncoder(w).Encode(ChatResponse{Answer: purchaseResponse})
 		return
 	}
 
-	// 📦 2. Stok kontrolü
+	// 📦 Sonra stok bilgisi kontrol edilir
 	if dynamicAnswer, matched := h.ChatService.GetDynamicAnswer(userInput); matched {
-		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(ChatResponse{Answer: dynamicAnswer})
 		return
 	}
 
-	// 🤖 3. AI yanıtı (Gemini)
+	// 🤖 Son olarak Gemini'den genel cevap alınır
 	answer, err := h.ChatService.AskQuestion(userInput)
 	if err != nil {
-		fmt.Println("❌ Gemini API hatası:", err)
-		http.Error(w, "Gemini yanıtı alınamadı", http.StatusInternalServerError)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(ChatResponse{Answer: answer})
 }

@@ -5,6 +5,9 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strconv"
+	"strings"
+
 	"go_ecommerce/database"
 	"go_ecommerce/internal/handlers"
 	"go_ecommerce/internal/repositories"
@@ -26,9 +29,9 @@ func main() {
 	productHandler := handlers.NewProductHandler(productService)
 
 	// 💬 Chat
-	orderRepo :=repositories.NewOrderRepository()
+	orderRepo := repositories.NewOrderRepository()
 	apiKey := os.Getenv("GEMINI_API_KEY")
-	chatService := services.NewChatService(orderRepo,productRepo,apiKey)
+	chatService := services.NewChatService(orderRepo, productRepo, apiKey)
 	chatHandler := handlers.NewChatHandler(chatService)
 
 	// 🧾 Siparişler
@@ -48,6 +51,27 @@ func main() {
 			productHandler.CreateProduct(w, r)
 		} else {
 			http.Error(w, "Yalnızca GET ve POST destekleniyor", http.StatusMethodNotAllowed)
+		}
+	})
+
+	// ✅ Ürün silme işlemi
+	mux.HandleFunc("/api/products/", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodDelete {
+			// URL'den ID’yi al (örnek: /api/products/3)
+			parts := strings.Split(r.URL.Path, "/")
+			if len(parts) != 4 {
+				http.Error(w, "Geçersiz istek yolu", http.StatusBadRequest)
+				return
+			}
+			idStr := parts[3]
+			id, err := strconv.Atoi(idStr)
+			if err != nil {
+				http.Error(w, "Geçersiz ID", http.StatusBadRequest)
+				return
+			}
+			productHandler.DeleteProduct(w, r, uint(id))
+		} else {
+			http.Error(w, "Yalnızca DELETE destekleniyor", http.StatusMethodNotAllowed)
 		}
 	})
 
