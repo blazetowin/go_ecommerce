@@ -36,21 +36,34 @@ func (cs *ChatService) GetProductRepo() *repositories.ProductRepository {
 }
 
 // Kullanıcının mesajını yorumla ve cevap döndür
-func (cs *ChatService) GetResponse(prompt string) string {
+func (cs *ChatService) GetResponse(prompt string, userID uint) string {
 	prompt = strings.ToLower(prompt)
 
+	// Kullanıcının kendi sipariş geçmişi
+	if strings.Contains(prompt, "geçmiş siparişlerim") || strings.Contains(prompt, "benim siparişlerim") {
+		orders, err := cs.OrderRepo.GetOrdersByUser(userID, 5)
+		if err != nil {
+			return "⚠️ Siparişler alınırken bir hata oluştu."
+		}
+		return FormatOrdersForDisplay(orders)
+	}
+
 	// 1. Sipariş sorgusu öncelikli kontrol edilmeli
-	if msg, ok := cs.CheckIfOrderHistoryQuery(prompt); ok {
+	if msg, ok := cs.CheckIfOrderHistoryQuery(prompt, userID); ok {
+		return msg
+	}
+
+	if msg, ok := cs.CheckIfFilteredProductQuery(prompt); ok {
 		return msg
 	}
 
 	// 2. Satın alma niyeti varsa kontrol et
-	if msg, ok := cs.CheckIfPurchaseIntent(prompt); ok {
+	if msg, ok := cs.CheckIfPurchaseIntent(prompt, userID); ok {
 		return msg
 	}
 
 	// 3. En son stok sorgusunu yap
-	if msg, ok := cs.GetDynamicAnswer(prompt); ok {
+	if msg, ok := cs.GetDynamicAnswer(prompt, userID); ok {
 		return msg
 	}
 
@@ -61,7 +74,6 @@ func (cs *ChatService) GetResponse(prompt string) string {
 	}
 	return reply
 }
-
 
 // Gemini API'ye prompt gönder
 func (cs *ChatService) AskQuestion(prompt string) (string, error) {
@@ -116,37 +128,50 @@ func (cs *ChatService) AskQuestion(prompt string) (string, error) {
 }
 
 // Satın alma niyeti kontrolü
-func (cs *ChatService) CheckIfPurchaseIntent(userInput string) (string, bool) {
+func (cs *ChatService) CheckIfPurchaseIntent(userInput string, userID uint) (string, bool) {
 	products, err := cs.ProductRepo.GetAll()
 	if err != nil {
 		return "Ürün bilgilerine ulaşılamıyor.", true
 	}
 
 	lowerInput := strings.ToLower(userInput)
-	purchaseKeywords := []string{"satın almak", "satın al", "sipariş ver", "alacağım", "almak istiyorum", "siparişi ver"}
+	purchaseKeywords := []string{
+		"satın almak", "satın al", "sipariş ver", "alacağım", "almak istiyorum", "siparişi ver",
+	}
 
 	for _, p := range products {
 		if strings.Contains(lowerInput, strings.ToLower(p.Name)) {
 			for _, keyword := range purchaseKeywords {
 				if strings.Contains(lowerInput, keyword) {
-					if p.Stock <= 0 {
-						return fmt.Sprintf("Üzgünüz, şu anda %s stokta yok.", p.Name), true
+
+					// 🎯 Kaç adet alınmak istendiğini ayıkla
+					quantity := 1
+					re := regexp.MustCompile(`(\d+)\s*(adet|tane)?\s*` + regexp.QuoteMeta(strings.ToLower(p.Name)))
+					matches := re.FindStringSubmatch(lowerInput)
+					if len(matches) >= 2 {
+						if q, err := strconv.Atoi(matches[1]); err == nil {
+							quantity = q
+						}
 					}
 
-					err := cs.OrderRepo.CreateOrder(p.Name, 1)
-					if err != nil {
+					if p.Stock < quantity {
+						return fmt.Sprintf("Üzgünüz, şu anda stokta yalnızca %d adet %s var.", p.Stock, p.Name), true
+					}
+
+					if err := cs.OrderRepo.CreateOrder(p.Name, quantity, userID); err != nil {
 						return "Sipariş oluşturulurken bir hata oluştu.", true
 					}
 
-					if err := cs.ProductRepo.UpdateStockByName(p.Name, p.Stock-1); err != nil {
+					if err := cs.ProductRepo.UpdateStockByName(p.Name, p.Stock-quantity); err != nil {
 						return "Stok güncellenemedi, siparişiniz alınamadı.", true
 					}
 
-					if p.Stock-1 <= 2 {
-						return fmt.Sprintf("Siparişiniz başarıyla oluşturuldu! (%s)\n⚠️ Dikkat! Stokta yalnızca %d adet kaldı.", p.Name, p.Stock-1), true
+					if p.Stock-quantity <= 2 {
+						return fmt.Sprintf("Siparişiniz başarıyla oluşturuldu! (%s — %d adet)\n⚠️ Dikkat! Stokta yalnızca %d adet kaldı.",
+							p.Name, quantity, p.Stock-quantity), true
 					}
 
-					return fmt.Sprintf("Siparişiniz başarıyla oluşturuldu! (%s)", p.Name), true
+					return fmt.Sprintf("Siparişiniz başarıyla oluşturuldu! (%s — %d adet)", p.Name, quantity), true
 				}
 			}
 		}
@@ -156,13 +181,16 @@ func (cs *ChatService) CheckIfPurchaseIntent(userInput string) (string, bool) {
 }
 
 // Dinamik stok sorgusu
-func (cs *ChatService) GetDynamicAnswer(prompt string) (string, bool) {
-	// Sadece açık bir şekilde stok soruluyorsa bu fonksiyon devreye girmeli
+func (cs *ChatService) GetDynamicAnswer(prompt string, userID uint) (string, bool) {
+	// Eğer stokla ilgili değilse hiç uğraşma
 	if !(strings.Contains(prompt, "stokta var mı") ||
 		strings.Contains(prompt, "stok durumu") ||
 		strings.Contains(prompt, "kaç adet var") ||
 		strings.Contains(prompt, "mevcut mu") ||
-		strings.Contains(prompt, "var mı")) {
+		strings.Contains(prompt, "var mı") ||
+		strings.Contains(prompt, "ürünlerin stok durumu") ||
+		strings.Contains(prompt, "tüm stoklar") ||
+		strings.Contains(prompt, "ürünlerin hepsi")) {
 		return "", false
 	}
 
@@ -171,15 +199,25 @@ func (cs *ChatService) GetDynamicAnswer(prompt string) (string, bool) {
 		return "Ürün bilgilerine ulaşılamadı.", true
 	}
 
+	promptLower := strings.ToLower(prompt)
+
+	// 🔍 Eğer tek bir ürün soruluyorsa
 	for _, product := range products {
-		if strings.Contains(strings.ToLower(prompt), strings.ToLower(product.Name)) {
+		if strings.Contains(promptLower, strings.ToLower(product.Name)) {
 			if product.Stock > 0 {
 				return fmt.Sprintf("Evet, stokta %d adet %s var.", product.Stock, product.Name), true
 			}
 			return fmt.Sprintf("Üzgünüz, şu anda %s stokta yok.", product.Name), true
 		}
 	}
-	return "", false
+
+	// 🔁 Eğer genel stok durumu isteniyorsa
+	var sb strings.Builder
+	sb.WriteString("📦 Stok Durumları:\n")
+	for _, p := range products {
+		sb.WriteString(fmt.Sprintf("- %s: %d adet\n", p.Name, p.Stock))
+	}
+	return sb.String(), true
 }
 
 // "son X [ürün adı] sipariş" formatını yakalar
@@ -215,7 +253,8 @@ func FormatOrdersForDisplay(orders []models.Order) string {
 	}
 	return sb.String()
 }
-func (cs *ChatService) CheckIfOrderHistoryQuery(prompt string) (string, bool) {
+
+func (cs *ChatService) CheckIfOrderHistoryQuery(prompt string, userID uint) (string, bool) {
 	if strings.Contains(prompt, "son") && strings.Contains(prompt, "sipariş") {
 		n, product := ExtractLastNAndProduct(prompt)
 
@@ -234,5 +273,43 @@ func (cs *ChatService) CheckIfOrderHistoryQuery(prompt string) (string, bool) {
 		return FormatOrdersForDisplay(orders), true
 	}
 	return "", false
+}
+
+func (cs *ChatService) CheckIfFilteredProductQuery(prompt string) (string, bool) {
+	prompt = strings.ToLower(prompt)
+
+	if !(strings.Contains(prompt, "stokta olan") && strings.Contains(prompt, "altı")) {
+		return "", false
+	}
+
+	// Maksimum fiyatı yakala
+	maxPrice := ExtractMaxPrice(prompt)
+	if maxPrice == 0 {
+		return "⚠️ Lütfen bir fiyat limiti belirtin. Örn: 50000 TL altı.", true
+	}
+
+	// Stokta olan + fiyatı alt limitin altında olan ürünleri getir
+	products, err := cs.ProductRepo.FindFilteredProducts("", 0, maxPrice, 1, 0)
+	if err != nil || len(products) == 0 {
+		return "🔍 Uygun ürün bulunamadı.", true
+	}
+
+	var sb strings.Builder
+	sb.WriteString("🧾 Uygun Ürünler:\n")
+	for _, p := range products {
+		sb.WriteString(fmt.Sprintf("- %s: %.2f TL (%d adet)\n", p.Name, p.Price, p.Stock))
+	}
+	return sb.String(), true
+}
+func ExtractMaxPrice(prompt string) int {
+    re := regexp.MustCompile(`(\d{4,6})\s*(tl|₺)?`)
+    match := re.FindStringSubmatch(prompt)
+    if len(match) > 1 {
+        val, err := strconv.Atoi(match[1])
+        if err == nil {
+            return val
+        }
+    }
+    return 0
 }
 

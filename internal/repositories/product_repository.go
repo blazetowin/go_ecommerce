@@ -23,6 +23,12 @@ func NewProductRepository() *ProductRepository {
 func (r *ProductRepository) GetAll() ([]models.Product, error) {
 	var products []models.Product
 	result := r.db.Find(&products)
+
+	// Her ürünün InStock değerini hesapla
+	for i := range products {
+		products[i].InStock = products[i].Stock > 0
+	}
+
 	return products, result.Error
 }
 
@@ -101,8 +107,11 @@ func (r *ProductRepository) GetByName(name string) (*models.Product, error) {
 	if result.Error != nil {
 		return nil, result.Error
 	}
+
+	product.InStock = product.Stock > 0 // otomatik ayarla
 	return &product, nil
 }
+
 
 func (r *ProductRepository) Update(product *models.Product) error {
 	return r.db.Save(product).Error

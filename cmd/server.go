@@ -95,6 +95,6 @@ func main() {
 
 	// 5. Server başlat
 	port := ":8080"
-	fmt.Println("🚀 Sunucu çalışıyor: http://localhost" + port)
+	fmt.Println("Sunucu çalışıyor: http://localhost" + port)
 	log.Fatal(http.ListenAndServe(port, mux))
 }

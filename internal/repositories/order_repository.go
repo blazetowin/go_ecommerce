@@ -18,7 +18,7 @@ func NewOrderRepository() *OrderRepository {
 	}
 }
 
-func (r *OrderRepository) CreateOrder(productName string, quantity int) error {
+func (r *OrderRepository) CreateOrder(productName string, quantity int, userID uint) error {
 	var product models.Product
 	if err := r.db.Where("name = ?", productName).First(&product).Error; err != nil {
 		return err
@@ -31,6 +31,7 @@ func (r *OrderRepository) CreateOrder(productName string, quantity int) error {
 	order := models.Order{
 		ProductName: productName,
 		Quantity:    quantity,
+		UserID:      userID,
 	}
 
 	if err := r.db.Create(&order).Error; err != nil {
@@ -70,4 +71,14 @@ func (r *OrderRepository) GetLastNOrdersByProduct(product string, n int) ([]mode
 		return nil, err
 	}
 	return orders, nil
+}
+
+func (r *OrderRepository) GetOrdersByUser(userID uint, limit int) ([]models.Order, error) {
+	var orders []models.Order
+	err := r.db.
+		Where("user_id = ?", userID).
+		Order("created_at DESC").
+		Limit(limit).
+		Find(&orders).Error
+	return orders, err
 }
