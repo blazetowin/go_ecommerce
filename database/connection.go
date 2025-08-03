@@ -18,7 +18,7 @@ func Connect() {
 	}
 
 	// GORM ile tabloları oluştur
-	DB.AutoMigrate(&models.Product{},&models.Order{})
+	DB.AutoMigrate(&models.Product{}, &models.Order{}, &models.Cart{})
 
 	// 📦 Varsayılan ürünleri yükle
 	var count int64

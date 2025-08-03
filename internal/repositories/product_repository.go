@@ -18,7 +18,6 @@ func NewProductRepository() *ProductRepository {
 		db: database.DB,
 	}
 }
-
 // Tüm ürünleri getir
 func (r *ProductRepository) GetAll() ([]models.Product, error) {
 	var products []models.Product
@@ -31,13 +30,11 @@ func (r *ProductRepository) GetAll() ([]models.Product, error) {
 
 	return products, result.Error
 }
-
 // Yeni ürün oluştur
 func (r *ProductRepository) Create(product *models.Product) error {
 	result := r.db.Create(product)
 	return result.Error
 }
-
 // İsme göre stok getir
 func (r *ProductRepository) GetStockByProductName(name string) int {
 	var product models.Product
@@ -48,7 +45,6 @@ func (r *ProductRepository) GetStockByProductName(name string) int {
 	}
 	return product.Stock
 }
-
 // İsme göre stoğu güncelle
 func (r *ProductRepository) UpdateStockByName(name string, newStock int) error {
 	var product models.Product
@@ -59,7 +55,6 @@ func (r *ProductRepository) UpdateStockByName(name string, newStock int) error {
 	product.InStock = newStock > 0
 	return r.db.Save(&product).Error
 }
-
 // ID ile stoğu güncelle
 func (r *ProductRepository) UpdateStock(productID uint, newStock int) error {
 	var product models.Product
@@ -70,7 +65,6 @@ func (r *ProductRepository) UpdateStock(productID uint, newStock int) error {
 	product.InStock = newStock > 0
 	return r.db.Save(&product).Error
 }
-
 // Filtreli ürün listeleme
 func (r *ProductRepository) FindFilteredProducts(name string, minPrice, maxPrice, minStock, maxStock int) ([]models.Product, error) {
 	db := r.db.Model(&models.Product{})
@@ -97,10 +91,11 @@ func (r *ProductRepository) FindFilteredProducts(name string, minPrice, maxPrice
 	}
 	return products, nil
 }
+// Ürün ID'sine göre sil
 func (r *ProductRepository) DeleteByID(id uint) error {
 	return r.db.Delete(&models.Product{}, id).Error
 }
-
+// Ürün ismine göre getir
 func (r *ProductRepository) GetByName(name string) (*models.Product, error) {
 	var product models.Product
 	result := r.db.Where("name = ?", name).First(&product)
@@ -111,8 +106,15 @@ func (r *ProductRepository) GetByName(name string) (*models.Product, error) {
 	product.InStock = product.Stock > 0 // otomatik ayarla
 	return &product, nil
 }
-
-
+// Ürün güncelle
 func (r *ProductRepository) Update(product *models.Product) error {
 	return r.db.Save(product).Error
 }
+func (pr *ProductRepository) GetByID(id uint) (*models.Product, error) {
+	var product models.Product
+	if err := pr.db.First(&product, id).Error; err != nil {
+		return nil, err
+	}
+	return &product, nil
+}
+

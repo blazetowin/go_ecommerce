@@ -16,9 +16,10 @@ import (
 type ChatService struct {
 	OrderRepo   *repositories.OrderRepository
 	ProductRepo *repositories.ProductRepository
+	CartRepo    *repositories.CartRepository 
 	APIKey      string
 }
-
+// Yeni ChatService oluştur
 func NewChatService(orderRepo *repositories.OrderRepository, productRepo *repositories.ProductRepository, apiKey string) *ChatService {
 	return &ChatService{
 		OrderRepo:   orderRepo,
@@ -26,15 +27,14 @@ func NewChatService(orderRepo *repositories.OrderRepository, productRepo *reposi
 		APIKey:      apiKey,
 	}
 }
-
+// OrderRepository'yi döndür
 func (cs *ChatService) GetOrderRepo() *repositories.OrderRepository {
 	return cs.OrderRepo
 }
-
+// ProductRepository'yi döndür
 func (cs *ChatService) GetProductRepo() *repositories.ProductRepository {
 	return cs.ProductRepo
 }
-
 // Kullanıcının mesajını yorumla ve cevap döndür
 func (cs *ChatService) GetResponse(prompt string, userID uint) string {
 	prompt = strings.ToLower(prompt)
@@ -74,7 +74,6 @@ func (cs *ChatService) GetResponse(prompt string, userID uint) string {
 	}
 	return reply
 }
-
 // Gemini API'ye prompt gönder
 func (cs *ChatService) AskQuestion(prompt string) (string, error) {
 	url := "https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=" + cs.APIKey
@@ -126,7 +125,6 @@ func (cs *ChatService) AskQuestion(prompt string) (string, error) {
 
 	return data.Candidates[0].Content.Parts[0].Text, nil
 }
-
 // Satın alma niyeti kontrolü
 func (cs *ChatService) CheckIfPurchaseIntent(userInput string, userID uint) (string, bool) {
 	products, err := cs.ProductRepo.GetAll()
@@ -179,7 +177,6 @@ func (cs *ChatService) CheckIfPurchaseIntent(userInput string, userID uint) (str
 
 	return "", false
 }
-
 // Dinamik stok sorgusu
 func (cs *ChatService) GetDynamicAnswer(prompt string, userID uint) (string, bool) {
 	// Eğer stokla ilgili değilse hiç uğraşma
@@ -219,7 +216,6 @@ func (cs *ChatService) GetDynamicAnswer(prompt string, userID uint) (string, boo
 	}
 	return sb.String(), true
 }
-
 // "son X [ürün adı] sipariş" formatını yakalar
 func ExtractLastNAndProduct(input string) (int, string) {
 	re := regexp.MustCompile(`son (\d+)\s*([a-zA-Z0-9\s]*)?sipariş`)
@@ -238,7 +234,6 @@ func ExtractLastNAndProduct(input string) (int, string) {
 	}
 	return n, product
 }
-
 // Siparişleri kullanıcıya düzgün formatta göster
 func FormatOrdersForDisplay(orders []models.Order) string {
 	if len(orders) == 0 {
@@ -253,7 +248,7 @@ func FormatOrdersForDisplay(orders []models.Order) string {
 	}
 	return sb.String()
 }
-
+// Sipariş geçmişi sorgusu kontrolü
 func (cs *ChatService) CheckIfOrderHistoryQuery(prompt string, userID uint) (string, bool) {
 	if strings.Contains(prompt, "son") && strings.Contains(prompt, "sipariş") {
 		n, product := ExtractLastNAndProduct(prompt)
@@ -274,7 +269,7 @@ func (cs *ChatService) CheckIfOrderHistoryQuery(prompt string, userID uint) (str
 	}
 	return "", false
 }
-
+// Filtreli ürün sorgusu kontrolü
 func (cs *ChatService) CheckIfFilteredProductQuery(prompt string) (string, bool) {
 	prompt = strings.ToLower(prompt)
 
@@ -301,6 +296,7 @@ func (cs *ChatService) CheckIfFilteredProductQuery(prompt string) (string, bool)
 	}
 	return sb.String(), true
 }
+// Fiyatı yakala
 func ExtractMaxPrice(prompt string) int {
     re := regexp.MustCompile(`(\d{4,6})\s*(tl|₺)?`)
     match := re.FindStringSubmatch(prompt)
@@ -311,5 +307,61 @@ func ExtractMaxPrice(prompt string) int {
         }
     }
     return 0
+}
+func (cs *ChatService) AddToCart(userID, productID uint, quantity int) (string, error) {
+	product, err := cs.ProductRepo.GetByID(productID)
+	if err != nil {
+		return "", fmt.Errorf("ürün bulunamadı")
+	}
+
+	if product.Stock < quantity {
+		return "", fmt.Errorf("yeterli stok yok (stok: %d)", product.Stock)
+	}
+
+	// Sepette ürün zaten var mı kontrol et
+	existingCartItem, err := cs.CartRepo.FindByUserAndProduct(userID, productID)
+	if err == nil && existingCartItem != nil {
+		// Güncelle: Miktarı arttır
+		existingCartItem.Quantity += quantity
+		err = cs.CartRepo.Update(existingCartItem)
+		if err != nil {
+			return "", fmt.Errorf("sepet güncellenemedi")
+		}
+		return fmt.Sprintf("🛒 Sepet güncellendi: %s (%d adet)", product.Name, existingCartItem.Quantity), nil
+	}
+
+	// Yoksa: Yeni ürün ekle
+	newCartItem := &models.Cart{
+		UserID:    userID,
+		ProductID: productID,
+		Quantity:  quantity,
+	}
+
+	err = cs.CartRepo.Create(newCartItem)
+	if err != nil {
+		return "", fmt.Errorf("sepet kaydı oluşturulamadı")
+	}
+
+	return fmt.Sprintf("🛒 Sepete eklendi: %s (%d adet)", product.Name, quantity), nil
+}
+func (cs *ChatService) RemoveFromCart(userID uint, productID uint) error {
+	cartItem, err := cs.CartRepo.FindByUserAndProduct(userID, productID)
+	if err != nil {
+		return err
+	}
+
+	// 🛠️ Ürün bilgisi çekiliyor
+	product, err := cs.ProductRepo.GetByID(cartItem.ProductID)
+	if err != nil {
+		return err
+	}
+
+	// 🗑️ Silme işlemi
+	if err := cs.CartRepo.Delete(cartItem); err != nil {
+		return err
+	}
+
+	fmt.Printf("❌ %s sepetten silindi.\n", product.Name)
+	return nil
 }
 
